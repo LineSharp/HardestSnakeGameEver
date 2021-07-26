@@ -33,19 +33,6 @@ namespace Snake
         //list of Blades
         List<PictureBox> BladeList = new List<PictureBox>();
 
-        private int _stage = 0;//stages when Blades spawn
-        /// <summary>
-        /// in stage 0 no Blade
-        /// in stage 1 upBladePrimary
-        /// in stage 2 downBladePrimary
-        /// in stage 3 leftBladePrimary
-        /// in stage 4 rightBladePrimary
-        /// in stage 5 upBladeSecondary
-        /// in stage 6 downBladeSecondary
-        /// in stage 7 leftBladeSecondary
-        /// in stage 8 rightBladeSecondary
-        /// </summary>
-
 
         //misc stuff
         #region

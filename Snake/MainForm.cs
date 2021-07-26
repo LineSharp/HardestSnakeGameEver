@@ -26,93 +26,20 @@ namespace Snake
         //Declarations
         #region
         Image backGround = Image.FromFile(@"../../sprites/BG.png");
-        Point ratLocation;
-        Point mineLocation;
-        Point ratApparentLocation;
-        Point snakeLocation;
-        private static Snake snakeObj;
+        private Snake snakeObj;
 
         public Form theForm;
         Control.ControlCollection FormAdder;
         private static Random rng;
-        bool alive = true;
-        bool isFirstTime = true;
-        private int size=3;
         private Rat rat;
-        private int timer;
         PrivateFontCollection bitFont = new PrivateFontCollection();
         Label scoreBoard = new Label();
-        Mine mine;
-        List<PictureBox> mineList = new List<PictureBox>();
-        float mineCount=0.0f;
+
+        List<Mine> Mines;
         Blade blade;
 
-        //Score increase event
-
-        public delegate void ScoreIncrease();
-        public event ScoreIncrease ScoreEvent;
-
-        //List<PictureBox> snek;
-        protected override CreateParams CreateParams//renders the forms externally and shows later, i guess, it reduces lag, but lag later down the line is imminent due to a lot of picture frames
-        {
-            get
-            {
-                CreateParams cp = base.CreateParams;
-                cp.ExStyle |= 0x02000000;
-                return cp;
-            }
-        }
-        public int SnekSize
-        {
-            get=>size; set=>size = value;
-        }
-
-        int RatX
-        {
-            get => ratLocation.X;
-            set => ratLocation.X = value;
-        }
-        int RatY
-        {
-            get => ratLocation.Y;
-            set => ratLocation.Y = value;
-        }
-        int MineX
-        {
-            get => mineLocation.X;
-            set => mineLocation.X = value;
-        }
-        int MineY
-        {
-            get => mineLocation.Y;
-            set => mineLocation.Y = value;
-        }
-        int RatApparentX
-        {
-            get => ratApparentLocation.X;
-            set => ratApparentLocation.X = value;
-        }
-        int RatApparentY
-        {
-            get => ratApparentLocation.Y;
-            set => ratApparentLocation.Y = value;
-        }
-
-        int SnekX
-        {
-            get => snakeLocation.X;
-            set => snakeLocation.X = value;
-        }
-        int SnekY
-        {
-            get => snakeLocation.Y;
-            set => snakeLocation.Y = value;
-        }
-        int Stage
-        {
-            get;
-            set;
-        }
+        //to count the number of  millerseconds that have passed 
+        Thread TimerThread;
 
 
         //blade related
@@ -135,12 +62,8 @@ namespace Snake
             //lets initialize our font collection, private font collecttion it is a font family ie it is basically a list of ttf files
             bitFont.AddFontFile(@"../../fonts/bitFont.ttf");
 
-            //setting execution priorities
-            Thread first = new Thread(UpdateTimer);//we are just prioratizing this method as we want it to keep running before others,
-                                                   //as if it is not high priority the await is almost always overlooked and overtaken by other processes and it will not run
-            first.Priority = ThreadPriority.Highest;
 
-            UpdateTimer();
+
             //define the forms properties
             this.Height = 500;
             this.Width = 500;
@@ -165,6 +88,8 @@ namespace Snake
             //adding the border walls
             Walls wall = new Walls(theForm);
 
+            //create the list of mines 
+            Mines = new List<Mine>();
 
             //init the randomizer
             rng = new Random();
@@ -175,30 +100,27 @@ namespace Snake
             dB.Location = new Point(-100, -100);
             lB.Location = new Point(-100, -100);
             rB.Location = new Point(-100, -100);
-            //init the snake
-            snakeObj = new Snake(SnekSize);//gets called and updated when ever the snake is called
-            SnakeInitializer();
+            //instantiate the snake
+            snakeObj = new Snake(this);//gets called and updated when ever the snake is called
+            rat = new Rat(this);
 
-            RatLocationUpdater();
-            ////tasks for the other components
+            this.KeyDown += new KeyEventHandler(KeyPressed);
 
+            //TimerThread = new Thread(TimerTick);
+            //this.FormClosing += MainForm_FormClosing;
+            //TimerThread.Start();
 
-            this.Paint += new PaintEventHandler(RatMover);
-            this.Paint += (s, e) => {
-                scoreBoard.Text = (SnekSize-3).ToString();
-            };
+            FormAdder.Add(scoreBoard);            
+        }
 
-            //this.MouseClick += new MouseEventHandler(debugger);
-
-            ScoreEvent += new ScoreIncrease(MineCountUpdater);
-            ScoreEvent += new ScoreIncrease(BladeUpdater);
-            SpawnRatChecker();
-            MineSpawner();
-            this.KeyDown += new KeyEventHandler(MoveSnek);
-            //debugger();
-
-            FormAdder.Add(scoreBoard);
-            
+        /// <summary>
+        /// IMPORTENT this is to stop the thread when the form closes to stop a memory leak 
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            TimerThread.Abort();
         }
 
         //blade related
@@ -281,7 +203,7 @@ namespace Snake
         }
         private void BladeUpdater()//this method may look wierdd and funny but this way all of them will execute without having to type in extra 5 line, so fair is fair
         {
-            int Score = SnekSize - 3;
+            int Score = snakeObj.Length - 3;
             if (Score >= 5)
             {
                 UpBladeSpawner();
@@ -301,182 +223,132 @@ namespace Snake
         }
         #endregion
 
-        private void MoveSnek(object sender, KeyEventArgs e)
+        private void KeyPressed(object sender, KeyEventArgs e)
         {
-            string a = e.KeyCode.ToString();
-            var movedObject= snakeObj.MoveSnake(a);
-            List<PictureBox> moved = movedObject.Item1;
-            snakeLocation = movedObject.Item2;
-            PictureBox[] movedArray = moved.ToArray();
-            FormAdder.AddRange(movedArray);
-            KillRat();
-            KillSnake(moved);
+            string KeyCode = e.KeyCode.ToString();
+            snakeObj.KeyPressed(KeyCode);
+            IsRatEaten();
+            CheckIfSnakeIsDead();
+
         }
 
-        private void SpawnRatChecker()
+        /// <summary>
+        /// adds 1 to the score
+        /// </summary>
+        private void IncreceScore()
         {
-            if (mineList.Count == 0)
-            {
-                SpawRat();
-            }
-            else
-            {
-                foreach (var mine in mineList)
-                {
-                    if (!mine.Bounds.Contains(RatX, RatY))
-                    {
-                        SpawRat();
-                    }
-                    else
-                    {
-                        RatLocationUpdater();
-                    }
-                }
-            }
+            scoreBoard.Text = (snakeObj.Length - 4).ToString();
+        }
+        /// <summary>
+        /// creates a new rat and adds 1 to the score
+        /// </summary>
+        private void RatHasBeanEaten()
+        {
+            ActiveForm.Controls.Remove(rat.ratImage);
+            snakeObj.Eat();
+            rat = new Rat(Form.ActiveForm);
+            IncreceScore();
+            
+            //every time a rat is eaten new mines will spawn 
+            MineSpawner();
+
+            BladeUpdater();
+
         }
 
-        private void SpawRat()
+
+        /// <summary>
+        /// checks if the snakes head and the rat are colliding and if so then the rat is eaten 
+        /// </summary>
+        public void IsRatEaten()
         {
-            while (!alive || isFirstTime)
+            if (snakeObj.IsSnakeHeadColiding(rat.ratImage))
             {
-                rat = new Rat(ratLocation, out ratApparentLocation);
-                FormAdder.Add(rat.InitRatBox());
-                RatLocationUpdater();
-                alive = true;
-                isFirstTime = false;
-                //await Task.Delay(3000);//Since we currently dont have a snake to kill the rat we will just keep spawning one every 3 sec after cliick.
+                RatHasBeanEaten();
             }
         }
 
-        private void RatLocationUpdater()
-        {
-            RatX = rng.Next(30, 420);
-            RatY = rng.Next(30, 420);
-        } 
-        private void MineLocationUpdater()
-        {
-            MineX = rng.Next(30, 420);
-            MineY = rng.Next(30, 420);
-        }
 
-        //public async void debugger(object Sender, MouseEventArgs e)
+        //ignore just some random stuff i tested with 
+        #region
+
+        int time;
+        /// <summary>
+        /// increces time by 1 every millersecond 
+        /// this will be usefull when updating the blades 
+        /// </summary>
+        /// 
+
+        ///testing with threds 
+        //private void TimerTick()
         //{
-        //    Console.WriteLine(uB.Location);
+        //    while (TimerThread.IsAlive)
+        //    {
+        //        if (ActiveForm != null)
+        //        {
+        //            time++;
+        //            Form.ActiveForm.BeginInvoke(new MethodInvoker(delegate () { TimeLoop(); }));
+        //            Thread.Sleep(1);
+        //        }
+
+        //    }
         //}
 
-        public void KillRat()
-        {
-            bool thresX1 = SnekX >= RatApparentX && SnekX <= RatApparentX + 20;
-            bool thresX2 = SnekX+20 >= RatApparentX && SnekX +20 <= RatApparentX + 20;
-            bool thresY1 = SnekY >= RatApparentY && SnekY <= RatApparentY + 20;
-            bool thresY2 = SnekY +20 >= RatApparentY && SnekY+20 <= RatApparentY + 20;
-            if ((thresX1 || thresX2) && (thresY1 || thresY2))
-            {
-                
-                FormAdder.Remove(rat.InitRatBox());
-                rat.InitRatBox().Dispose();
-                alive = false;
-                SnekSize++;
-                ScoreEvent();
-                PictureBox[] snek = snakeObj.UpdateSize(SnekSize).ToArray(); ;
-                FormAdder.AddRange(snek);
-                SpawnRatChecker();
+        //private void TimeLoop()
+        //{
+        //    time++;
+        //    if (time % 3000 == 0)
+        //    {
+        //        MessageBox.Show("Test");
+        //    }
+        //}
 
-            }
 
-        }
-        private void SnakeInitializer()//spawns the snake
-        {
-            PictureBox[] snek = snakeObj.SnakeInit().ToArray(); ;
-            FormAdder.AddRange(snek);
-           
-        }
-
-        private void RatMover(object sender, PaintEventArgs e)
-        {
-            if (alive && timer == 5)
-            {
-                    
-                    FormAdder.Remove(rat.InitRatBox());
-                    rat.InitRatBox().Dispose();
-                    alive = false;
-                    SpawnRatChecker();
-                    timer = 0;
-                
-            }
-        }
-
-        private async void UpdateTimer()
-        {
-            while (alive && timer < 6)
-            {
-                timer++;
-                await Task.Delay(1000);
-                if (timer == 6)
-                {
-                    timer = 0;//self feeding loop
-                }
-            }
-        }
-
+        #endregion
         private void MineSpawner()
         {
-            int i = (int)mineCount;
-            Console.WriteLine(i);
-            while (i > 0)
+            //adding modifiers to this variable will change the number of mines that will spawn 
+            int NumberOfMinesToAdd = snakeObj.Length;
+            for (int i = 0; i < NumberOfMinesToAdd; i++)
             {
-                mine = new Mine(mineLocation);
-                PictureBox mineItem = mine.InitMineBox();
-                mineList.Add(mineItem);
-                FormAdder.Add(mineItem);
-                MineLocationUpdater();
-                i--;
+                Mines.Add(new Mine(ActiveForm));
             }
         }
 
-        private void KillSnake(List<PictureBox> pieces)
+        private void CheckIfSnakeIsDead()
         {
-            pieces.Reverse();//reversing to get head on the top
-            PictureBox head = pieces[0];
-            int i = 0;
-            foreach (PictureBox piece in pieces)
-            {
-                if (i > 0)
-                {
-                    if (head.Bounds.IntersectsWith(piece.Bounds))
-                    {
-                        GameOver();
-                    }
-                }
-                i++;
-            }
-            Point headsLocation = head.Location;
-            if (headsLocation.X > 466 || headsLocation.X < 20 || headsLocation.Y > 445 || headsLocation.Y<20)
+            //checks if the snakes head is in the same position as any body pieces 
+            if (snakeObj.IsSnakeColidingWithItself())
             {
                 GameOver();
             }
-            foreach(var mine in mineList)
+
+            //checks if the snake is touching a wall 
+            if (snakeObj.IsSnakeOutOfBounds())
             {
-                if (head.Bounds.IntersectsWith(mine.Bounds))
+                GameOver();
+            }
+
+            foreach (Mine mine in Mines)
+            {
+                if (mine.mine.Bounds.IntersectsWith(snakeObj.HeadBounds))
                 {
                     GameOver();
+                    break;
                 }
             }
-            if(head.Bounds.IntersectsWith(uB.Bounds)|| head.Bounds.IntersectsWith(dB.Bounds) || head.Bounds.IntersectsWith(lB.Bounds) || head.Bounds.IntersectsWith(rB.Bounds))
-            {
-                    GameOver();
-            }
-        }
 
-        private void MineCountUpdater()
-        {
-            mineCount+=0.5f;
-            MineSpawner();
+            if (dB.Bounds.IntersectsWith(snakeObj.HeadBounds) ||uB.Bounds.IntersectsWith(snakeObj.HeadBounds) || lB.Bounds.IntersectsWith(snakeObj.HeadBounds)|| rB.Bounds.IntersectsWith(snakeObj.HeadBounds))
+            {
+                GameOver();
+            }
+            
+
         }
 
         private void GameOver()
         {
-            string message = $"You Died\nYou Scored: {SnekSize - 3}\nDo you want to retry?";
+            string message = $"You Died\nYou Scored: {snakeObj.Length - 4}\nDo you want to retry?";
             string title = "Oh No!";
             DialogResult result= MessageBox.Show(message, title, MessageBoxButtons.YesNo);
             switch (result)

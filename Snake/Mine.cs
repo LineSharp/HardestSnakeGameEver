@@ -10,30 +10,20 @@ namespace Snake
 { 
     class Mine//mine model
     {
-        PictureBox mine = new PictureBox();
-        Image mineImage = Image.FromFile(@"../../sprites/Mine.png");
-        Point _location = new Point();
-        private Point Location
-        {
-            get => _location;
-        }
+        public PictureBox mine = new PictureBox();
+        static Image mineImage = Image.FromFile(@"../../sprites/Mine.png");
 
-        public Mine(Point location)
+        public Mine(Form activeForm)
         {
-            _location = location;//we are taking in location in controller so that we can spawn the mine and kill it in our Controller,
-                                 //As doing it from Model will be a problem while linking with smake models location and will make it harder in our view part as well
-        }
-        private Point mineLocation { get => _location; }
+            Random rnd = new Random();
 
-        public PictureBox InitMineBox()
-        {
             mine.Height = 20;
             mine.Width = 20;
-            mine.Location = mineLocation;
+            //i am doing * 21 so the mines will be in a grid like format 
+            mine.Location = new Point(rnd.Next(1,20) * 21,rnd.Next(1,20) * 21);
             mine.BackColor = Color.Transparent;
             mine.Image = mineImage;
-            return mine;
-
+            activeForm.Controls.Add(mine);
         }
     }
 }

@@ -10,35 +10,26 @@ namespace Snake
 { 
     class Rat//rat model
     {
-        PictureBox rat = new PictureBox();
-        Image ratImage = Image.FromFile(@"../../sprites/rat.png");
-        Point _location = new Point();
-        private Point Location
+        public PictureBox ratImage;
+        Image Image = Image.FromFile(@"../../sprites/rat.png");
+        Random rnd;
+        public Rat(Form activeForm)
         {
-            get => _location;
-        }
+            ratImage = new PictureBox();
+            rnd = new Random();
+            ratImage = new PictureBox();
+            MoveRat();
 
-        public Rat(Point location, out Point apparentLocation )
-        {
-            _location = location;//we are taking in location in controller so that we can spawn the rat and kill it in our Controller,
-                                 //As doing it from Model will be a problem while linking with smake models location and will make it harder in our view part as well
-            apparentLocation = Location;
+            ratImage.Height = 20;
+            ratImage.Width = 20;
+            ratImage.BackColor = Color.Transparent;
+            ratImage.Image = Image;
+            activeForm.Controls.Add(ratImage);
         }
-        private Point RatLocation { get => _location; }
-
-        public PictureBox InitRatBox()
+        public void MoveRat()
         {
-            rat.Height = 20;
-            rat.Width = 20;
-            rat.Location = RatLocation;
-            rat.BackColor = Color.Transparent;
-            rat.Image = ratImage;
-            return rat;
-
-        }
-        public void KillRat()
-        {
-            rat.Hide();
+            //the rat is randomly placed on the form 
+            ratImage.Location = new Point(rnd.Next(100, 400), rnd.Next(100, 400));
         }
     }
 }
